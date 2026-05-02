@@ -443,18 +443,18 @@ class VerificationSystem:
 # UI COMPONENTS
 # ==============================================================================
 
-class VerificationModal(Modal, title='Verification'):
+class VerificationModal(Modal):
     """Modal for answering the captcha question."""
     
     answer = TextInput(label='Your Answer', placeholder='Enter the answer', max_length=10)
     
     def __init__(self, verification_system: VerificationSystem, member: discord.Member, question: str):
-        super().__init__()
+        # Truncate title to 45 chars max for Discord
+        title = f'Math: {question}'[:45]
+        super().__init__(title=title)
         self.verification_system = verification_system
         self.member = member
         self.question = question
-        # Update the title to show the question
-        self.title = f'Verify: {question}'
     
     async def on_submit(self, interaction: discord.Interaction):
         """Handle modal submission."""
@@ -482,29 +482,36 @@ class VerificationButtonView(View):
     @discord.ui.button(label='Start Verification', style=discord.ButtonStyle.green, custom_id='verify_button')
     async def verify_button(self, interaction: discord.Interaction, button: Button):
         """Handle verification button click."""
-        member = interaction.user
-        
-        if not isinstance(member, discord.Member):
-            await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
-            return
-        
-        # Run security checks
-        can_verify, check_msg = await self.verification_system.start_verification(member)
-        if not can_verify:
-            await interaction.response.send_message(f"❌ {check_msg}", ephemeral=True)
-            return
-        
-        # Generate a math question
-        question, answer = self.verification_system.generate_math_question()
-        user_id_str = str(member.id)
-        self.verification_system.pending_verifications[user_id_str] = {
-            'answer': answer,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Show modal with the question
-        modal = VerificationModal(self.verification_system, member, question)
-        await interaction.response.send_modal(modal)
+        try:
+            member = interaction.user
+            
+            if not isinstance(member, discord.Member):
+                await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+                return
+            
+            # Run security checks
+            can_verify, check_msg = await self.verification_system.start_verification(member)
+            if not can_verify:
+                await interaction.response.send_message(f"❌ {check_msg}", ephemeral=True)
+                return
+            
+            # Generate a math question
+            question, answer = self.verification_system.generate_math_question()
+            user_id_str = str(member.id)
+            self.verification_system.pending_verifications[user_id_str] = {
+                'answer': answer,
+                'created_at': datetime.now().isoformat()
+            }
+            
+            # Show modal with the question
+            modal = VerificationModal(self.verification_system, member, question)
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            print(f"Error in verify_button: {e}")
+            try:
+                await interaction.response.send_message("❌ An error occurred. Please try again.", ephemeral=True)
+            except:
+                pass
 
 # ==============================================================================
 # PULLBACK SYSTEM
