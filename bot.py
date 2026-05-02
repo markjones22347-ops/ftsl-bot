@@ -23,6 +23,8 @@ import random
 import asyncio
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import threading
 
 # ==============================================================================
 # CONFIGURATION
@@ -45,6 +47,40 @@ ATTEMPT_COOLDOWN_SECONDS = 30
 VERIFIED_USERS_FILE = "verified_users.json"
 FLAGGED_USERS_FILE = "flagged.json"
 RAID_MODE_FILE = "raid_mode.txt"
+
+# Uptime Robot support
+UPTIME_PORT = int(os.getenv('PORT', 10000))
+
+# ==============================================================================
+# STORAGE MANAGEMENT
+# ==============================================================================
+
+# ==============================================================================
+# UPTIME ROBOT HTTP SERVER
+# ==============================================================================
+
+class UptimeHandler(BaseHTTPRequestHandler):
+    """Simple HTTP handler for Uptime Robot pings."""
+    
+    def do_GET(self):
+        """Handle GET requests for uptime monitoring."""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'OK')
+    
+    def log_message(self, format, *args):
+        """Suppress default logging."""
+        pass
+
+def start_uptime_server():
+    """Start the HTTP server for uptime monitoring in a background thread."""
+    try:
+        server = HTTPServer(('0.0.0.0', UPTIME_PORT), UptimeHandler)
+        print(f"Uptime server started on port {UPTIME_PORT}")
+        server.serve_forever()
+    except Exception as e:
+        print(f"Error starting uptime server: {e}")
 
 # ==============================================================================
 # STORAGE MANAGEMENT
@@ -737,6 +773,10 @@ def main():
         print("Error: DISCORD_TOKEN environment variable not set!")
         print("Please set your bot token as an environment variable.")
         return
+    
+    # Start uptime server in background thread
+    uptime_thread = threading.Thread(target=start_uptime_server, daemon=True)
+    uptime_thread.start()
     
     # Create and run bot
     bot = FTSLBot()
