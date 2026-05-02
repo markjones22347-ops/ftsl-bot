@@ -21,6 +21,7 @@ import json
 import os
 import random
 import asyncio
+import traceback
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Set
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -303,11 +304,7 @@ class VerificationSystem:
         
         # Check raid mode
         if self.storage.raid_mode:
-            try:
-                await member.send(f"The server is currently under protection. Please join the backup server: {BACKUP_INVITE}")
-            except:
-                pass
-            return False, "The server is currently under protection mode."
+            return False, f"The server is currently under protection. Please join the backup server: {BACKUP_INVITE}"
         
         # Check if already verified
         if self.storage.is_verified(user_id_str):
@@ -486,7 +483,7 @@ class VerificationButtonView(View):
             member = interaction.user
             
             if not isinstance(member, discord.Member):
-                await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
+                await interaction.response.send_message("This can only be used in a server.", ephemeral=True)
                 return
             
             # Run security checks
@@ -503,13 +500,15 @@ class VerificationButtonView(View):
                 'created_at': datetime.now().isoformat()
             }
             
-            # Show modal with the question
+            # Show modal with the question in the title
             modal = VerificationModal(self.verification_system, member, question)
             await interaction.response.send_modal(modal)
         except Exception as e:
-            print(f"Error in verify_button: {e}")
+            print(f"ERROR in verify_button: {e}")
+            traceback.print_exc()
             try:
-                await interaction.response.send_message("❌ An error occurred. Please try again.", ephemeral=True)
+                if not interaction.response.is_done():
+                    await interaction.response.send_message("❌ An error occurred. Please try again.", ephemeral=True)
             except:
                 pass
 
