@@ -30,6 +30,7 @@ from typing import Dict, List, Optional, Set
 
 # Discord IDs
 VERIFIED_ROLE_ID = 1500218041449844977
+UNVERIFIED_ROLE_ID = 1500224847219920987
 VERIFICATION_CHANNEL_ID = 1500220647295553536
 BACKUP_INVITE = "https://discord.gg/sHeHF8VyYC"
 
@@ -338,7 +339,7 @@ class VerificationSystem:
         try:
             # Get roles
             verified_role = guild.get_role(VERIFIED_ROLE_ID)
-            unverified_role = self._get_or_create_unverified_role(guild)
+            unverified_role = guild.get_role(UNVERIFIED_ROLE_ID)
             
             if not verified_role:
                 print(f"Error: Verified role not found (ID: {VERIFIED_ROLE_ID})")
@@ -363,29 +364,14 @@ class VerificationSystem:
             print(f"Error completing verification: {e}")
             return False
     
-    def _get_or_create_unverified_role(self, guild: discord.Guild) -> Optional[discord.Role]:
-        """Get or create the Unverified role."""
-        unverified_role = discord.utils.get(guild.roles, name="Unverified")
-        
-        if not unverified_role:
-            # Create the role
-            try:
-                unverified_role = asyncio.run(guild.create_role(
-                    name="Unverified",
-                    color=discord.Color.red(),
-                    reason="Auto-created by verification bot"
-                ))
-                print(f"Created Unverified role")
-            except Exception as e:
-                print(f"Error creating Unverified role: {e}")
-                return None
-        
-        return unverified_role
+    def _get_unverified_role(self, guild: discord.Guild) -> Optional[discord.Role]:
+        """Get the Unverified role by ID."""
+        return guild.get_role(UNVERIFIED_ROLE_ID)
     
     async def setup_channel_permissions(self, guild: discord.Guild):
         """Setup channel permissions for the verification system."""
         try:
-            unverified_role = self._get_or_create_unverified_role(guild)
+            unverified_role = self._get_unverified_role(guild)
             verification_channel = guild.get_channel(VERIFICATION_CHANNEL_ID)
             verified_role = guild.get_role(VERIFIED_ROLE_ID)
             
@@ -582,14 +568,7 @@ class FTSLBot(commands.Bot):
                 pass
             return
         
-        # Get or create Unverified role
-        unverified_role = self.verification_system._get_or_create_unverified_role(member.guild)
-        
-        if unverified_role:
-            try:
-                await member.add_roles(unverified_role)
-            except Exception as e:
-                print(f"Error adding Unverified role: {e}")
+        # Note: Unverified role is auto-assigned by Discord, no need to add it here
         
         # Start verification process
         verification_channel = member.guild.get_channel(VERIFICATION_CHANNEL_ID)
