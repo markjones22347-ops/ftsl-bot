@@ -191,9 +191,29 @@ class VerificationSystem:
         self.pending_verifications: Dict[str, Dict] = {}
         self.verification_attempts: Dict[str, Dict] = {}
     
-    def generate_verification_code(self) -> str:
-        """Generate a random 6-digit verification code."""
-        return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+    def generate_math_question(self) -> tuple[str, str]:
+        """Generate a simple math captcha question and its answer."""
+        # Pick a random operation
+        ops = ['+', '-', 'x']
+        op = random.choice(ops)
+        
+        if op == '+':
+            a = random.randint(1, 20)
+            b = random.randint(1, 20)
+            question = f"What is {a} + {b}?"
+            answer = str(a + b)
+        elif op == '-':
+            a = random.randint(5, 20)
+            b = random.randint(1, a)
+            question = f"What is {a} - {b}?"
+            answer = str(a - b)
+        else:  # multiplication
+            a = random.randint(2, 10)
+            b = random.randint(2, 10)
+            question = f"What is {a} x {b}?"
+            answer = str(a * b)
+        
+        return question, answer
     
     def check_account_age(self, member: discord.Member) -> tuple[bool, str]:
         """Check if the user's account is old enough."""
@@ -269,8 +289,8 @@ class VerificationSystem:
             'cooldown_until': None
         })
     
-    async def start_verification(self, member: discord.Member, channel: Optional[discord.abc.Messageable] = None) -> tuple[bool, str]:
-        """Start the verification process for a user."""
+    async def start_verification(self, member: discord.Member) -> tuple[bool, str]:
+        """Run security checks before allowing verification."""
         user_id_str = str(member.id)
         
         # Check raid mode
@@ -304,50 +324,28 @@ class VerificationSystem:
         if not attempt_ok:
             return False, attempt_msg
         
-        # Generate verification code
-        code = self.generate_verification_code()
-        self.pending_verifications[user_id_str] = {
-            'code': code,
-            'created_at': datetime.now().isoformat()
-        }
-        
-        # Try to DM the user
-        try:
-            await member.send(
-                f"**Verification Code:** {code}\n\n"
-                f"Please reply with this code to complete your verification. "
-                f"This code will expire in 10 minutes.\n\n"
-                f"If you cannot reply to DMs, please use the verification button in the server."
-            )
-            return True, "Verification code sent to your DMs. Please check your messages."
-        except discord.ForbiddenError:
-            if channel:
-                await channel.send(
-                    f"{member.mention}, I couldn't send you a DM. Please click the 'Start Verification' button below.",
-                    view=VerificationButtonView(self)
-                )
-            return True, "Please use the verification button in the server."
+        return True, ""
     
-    async def verify_code(self, member: discord.Member, code: str, channel: Optional[discord.abc.Messageable] = None) -> tuple[bool, str]:
-        """Verify a user's code."""
+    async def verify_answer(self, member: discord.Member, answer: str) -> tuple[bool, str]:
+        """Verify a user's captcha answer."""
         user_id_str = str(member.id)
         
         # Check if pending verification exists
         if user_id_str not in self.pending_verifications:
             self.record_attempt(user_id_str, success=False)
-            return False, "No pending verification found. Please start verification again."
+            return False, "No pending verification found. Please click the button again."
         
         pending = self.pending_verifications[user_id_str]
         
-        # Check code expiration (10 minutes)
+        # Check expiration (10 minutes)
         created_at = datetime.fromisoformat(pending['created_at'])
         if datetime.now() - created_at > timedelta(minutes=10):
             del self.pending_verifications[user_id_str]
             self.record_attempt(user_id_str, success=False)
-            return False, "Verification code expired. Please start verification again."
+            return False, "Verification expired. Please click the button again."
         
-        # Check code
-        if pending['code'] != code:
+        # Check answer
+        if pending['answer'] != answer.strip():
             self.record_attempt(user_id_str, success=False)
             attempts_data = self.get_user_attempts(user_id_str)
             remaining = MAX_VERIFICATION_ATTEMPTS - attempts_data['attempts']
@@ -360,7 +358,7 @@ class VerificationSystem:
                     pass
                 return False, "You have exceeded the maximum number of attempts and have been kicked."
             
-            return False, f"Invalid code. You have {remaining} attempt(s) remaining."
+            return False, f"Wrong answer. You have {remaining} attempt(s) remaining."
         
         # Verification successful
         del self.pending_verifications[user_id_str]
@@ -438,20 +436,23 @@ class VerificationSystem:
 # ==============================================================================
 
 class VerificationModal(Modal, title='Verification'):
-    """Modal for entering verification code."""
+    """Modal for answering the captcha question."""
     
-    code = TextInput(label='Verification Code', placeholder='Enter your 6-digit code', max_length=6)
+    answer = TextInput(label='Your Answer', placeholder='Enter the answer', max_length=10)
     
-    def __init__(self, verification_system: VerificationSystem, member: discord.Member):
+    def __init__(self, verification_system: VerificationSystem, member: discord.Member, question: str):
         super().__init__()
         self.verification_system = verification_system
         self.member = member
+        self.question = question
+        # Update the title to show the question
+        self.title = f'Verify: {question}'
     
     async def on_submit(self, interaction: discord.Interaction):
         """Handle modal submission."""
-        code = self.code.value.strip()
+        answer = self.answer.value.strip()
         
-        success, message = await self.verification_system.verify_code(self.member, code)
+        success, message = await self.verification_system.verify_answer(self.member, answer)
         
         if success:
             # Complete verification
@@ -479,8 +480,22 @@ class VerificationButtonView(View):
             await interaction.response.send_message("This command can only be used in a server.", ephemeral=True)
             return
         
-        # Show modal
-        modal = VerificationModal(self.verification_system, member)
+        # Run security checks
+        can_verify, check_msg = await self.verification_system.start_verification(member)
+        if not can_verify:
+            await interaction.response.send_message(f"❌ {check_msg}", ephemeral=True)
+            return
+        
+        # Generate a math question
+        question, answer = self.verification_system.generate_math_question()
+        user_id_str = str(member.id)
+        self.verification_system.pending_verifications[user_id_str] = {
+            'answer': answer,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        # Show modal with the question
+        modal = VerificationModal(self.verification_system, member, question)
         await interaction.response.send_modal(modal)
 
 # ==============================================================================
@@ -607,16 +622,13 @@ class FTSLBot(commands.Bot):
         
         # Note: Unverified role is auto-assigned by Discord, no need to add it here
         
-        # Start verification process
+        # Send welcome message pointing to verification channel
         verification_channel = member.guild.get_channel(VERIFICATION_CHANNEL_ID)
-        success, message = await self.verification_system.start_verification(member, verification_channel)
-        
         if verification_channel:
             try:
-                if success:
-                    await verification_channel.send(f"Welcome {member.mention}! {message}")
-                else:
-                    await verification_channel.send(f"{member.mention}, {message}")
+                await verification_channel.send(
+                    f"Welcome {member.mention}! Please click the **Start Verification** button below to verify."
+                )
             except Exception as e:
                 print(f"Error sending welcome message: {e}")
     
@@ -625,25 +637,6 @@ class FTSLBot(commands.Bot):
         # Ignore bot messages
         if message.author.bot:
             return
-        
-        # Handle DM verification
-        if isinstance(message.channel, discord.DMChannel):
-            if message.content.strip().isdigit() and len(message.content.strip()) == 6:
-                member = message.author
-                # Find the guild where this member is
-                for guild in self.guilds:
-                    guild_member = guild.get_member(member.id)
-                    if guild_member:
-                        success, verify_message = await self.verification_system.verify_code(guild_member, message.content.strip())
-                        
-                        if success:
-                            if await self.verification_system.complete_verification(guild_member, guild):
-                                await message.channel.send("✅ Verification successful! You now have access to the server.")
-                            else:
-                                await message.channel.send("❌ Error completing verification. Please contact staff.")
-                        else:
-                            await message.channel.send(f"❌ {verify_message}")
-                        break
         
         # Process commands
         await self.process_commands(message)
