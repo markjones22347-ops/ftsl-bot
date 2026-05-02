@@ -31,6 +31,7 @@ from typing import Dict, List, Optional, Set
 # Discord IDs
 VERIFIED_ROLE_ID = 1500218041449844977
 UNVERIFIED_ROLE_ID = 1500224847219920987
+ADMIN_ROLE_ID = 1500217835950047323
 VERIFICATION_CHANNEL_ID = 1500220647295553536
 BACKUP_INVITE = "https://discord.gg/sHeHF8VyYC"
 
@@ -630,9 +631,10 @@ def setup_commands(bot: FTSLBot):
             user = interaction.user
         
         if action == "reset":
-            # Check if user has permission
-            if not interaction.user.guild_permissions.administrator:
-                await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+            # Check if user has admin role
+            admin_role = interaction.guild.get_role(ADMIN_ROLE_ID)
+            if not admin_role or admin_role not in interaction.user.roles:
+                await interaction.response.send_message("❌ You need the Admin role to use this command.", ephemeral=True)
                 return
             
             user_id_str = str(user.id)
@@ -664,8 +666,9 @@ def setup_commands(bot: FTSLBot):
     @bot.tree.command(name="pullback", description="Send emergency pullback message to all verified users")
     async def pullback_command(interaction: discord.Interaction):
         """Handle pullback command."""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+        admin_role = interaction.guild.get_role(ADMIN_ROLE_ID)
+        if not admin_role or admin_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You need the Admin role to use this command.", ephemeral=True)
             return
         
         await interaction.response.send_message("⚠️ Sending pullback messages to all verified users...", ephemeral=True)
@@ -679,8 +682,9 @@ def setup_commands(bot: FTSLBot):
     @app_commands.describe(user="The user to force verify")
     async def forceverify_command(interaction: discord.Interaction, user: discord.Member):
         """Handle force verify command."""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+        admin_role = interaction.guild.get_role(ADMIN_ROLE_ID)
+        if not admin_role or admin_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You need the Admin role to use this command.", ephemeral=True)
             return
         
         user_id_str = str(user.id)
@@ -702,8 +706,9 @@ def setup_commands(bot: FTSLBot):
     @bot.tree.command(name="setup", description="Setup verification system (admin only)")
     async def setup_command(interaction: discord.Interaction):
         """Handle setup command."""
-        if not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ You need administrator permissions to use this command.", ephemeral=True)
+        admin_role = interaction.guild.get_role(ADMIN_ROLE_ID)
+        if not admin_role or admin_role not in interaction.user.roles:
+            await interaction.response.send_message("❌ You need the Admin role to use this command.", ephemeral=True)
             return
         
         await interaction.response.send_message("⚙️ Setting up verification system...", ephemeral=True)
