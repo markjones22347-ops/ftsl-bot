@@ -308,9 +308,14 @@ class VerificationSystem:
         if self.storage.raid_mode:
             return False, f"The server is currently under protection. Join backup: {BACKUP_INVITE}"
         
-        # Check if already verified
+        # Check if already verified - but also verify they actually have the role
         if self.storage.is_verified(user_id_str):
-            return False, "You are already verified."
+            verified_role = member.guild.get_role(VERIFIED_ROLE_ID)
+            if verified_role and verified_role in member.roles:
+                return False, "You are already verified."
+            else:
+                # In JSON but missing role (e.g. rejoined), remove from JSON so they can re-verify
+                self.storage.remove_verified_user(user_id_str)
         
         # Check if flagged
         if self.storage.is_flagged(user_id_str):
