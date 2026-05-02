@@ -629,7 +629,7 @@ class FTSLBot(commands.Bot):
     
     async def on_member_join(self, member: discord.Member):
         """Called when a member joins the guild."""
-        print(f"Member joined: {member.name} (ID: {member.id})")
+        print(f"Member joined: {member.name} (ID: {member.id})", flush=True)
         
         # Set main guild if not set
         if not self.main_guild_id:
@@ -641,6 +641,12 @@ class FTSLBot(commands.Bot):
                 await member.send(f"The server is currently under protection. Please join the backup server: {BACKUP_INVITE}")
             except:
                 pass
+            return
+        
+        # If user was previously verified, auto-restore their roles
+        if self.storage.is_verified(str(member.id)):
+            await self.verification_system.complete_verification(member, member.guild)
+            print(f"Auto-restored verified role for returning user {member.name}", flush=True)
             return
         
         # Note: Unverified role is auto-assigned by Discord, no need to add it here
