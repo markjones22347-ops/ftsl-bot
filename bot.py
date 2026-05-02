@@ -578,6 +578,9 @@ class FTSLBot(commands.Bot):
         self.verification_system = VerificationSystem(self.storage, self)
         self.pullback_system = PullbackSystem(self.storage, self)
         
+        # Add persistent view so the verification button works after restart
+        self.add_view(VerificationButtonView(self.verification_system))
+        
         # Sync commands
         await self.tree.sync()
         print("Slash commands synced")
@@ -629,16 +632,6 @@ class FTSLBot(commands.Bot):
             return
         
         # Note: Unverified role is auto-assigned by Discord, no need to add it here
-        
-        # Send welcome message pointing to verification channel
-        verification_channel = member.guild.get_channel(VERIFICATION_CHANNEL_ID)
-        if verification_channel:
-            try:
-                await verification_channel.send(
-                    f"Welcome {member.mention}! Please click the **Start Verification** button below to verify."
-                )
-            except Exception as e:
-                print(f"Error sending welcome message: {e}")
     
     async def on_message(self, message: discord.Message):
         """Called when a message is sent."""
