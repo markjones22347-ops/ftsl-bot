@@ -66,8 +66,16 @@ class UptimeHandler(BaseHTTPRequestHandler):
         """Handle GET requests for uptime monitoring."""
         self.send_response(200)
         self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-Length', '2')
         self.end_headers()
         self.wfile.write(b'OK')
+
+    def do_HEAD(self):
+        """Handle HEAD requests for uptime monitoring."""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/plain')
+        self.send_header('Content-Length', '2')
+        self.end_headers()
     
     def log_message(self, format, *args):
         """Suppress default logging."""
